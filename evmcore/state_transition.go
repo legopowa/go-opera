@@ -248,10 +248,51 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 	senderAddress := st.msg.From()
     // Check if the address is whitelisted using the contract's isAddressWhitelisted function
-    isWhitelisted := st.evm.ContractCaller().Call(st.msg.From(), genesisContract, []byte("isAddressWhitelisted(address)"), st.gas)
-    
+	isWhitelisted, err := st.evm.ContractCaller().Call(st.msg.From(), genesisContract, []byte("isAddressWhitelisted(address)"), st.gas)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check if address is whitelisted: %v", err)
+	}
+
 	if isWhitelisted == "true" {
 		st.gas = 0
+    	// Fetch lastTxTimestamp from sender's contract
+		lastlastTxTimestampBytes, err := st.evm.ContractCaller().Call(senderAddress, genesisContract, []byte("lastlastTxTimestamp()"), st.gas)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch lastlastTxTimestamp: %v", err)
+		}
+		if len(lastlastTxTimestampBytes) < 8 {
+			return nil, fmt.Errorf("lastlastTxTimestampBytes length is less than 8 bytes")
+		}
+		lastlastTxTimestamp := binary.BigEndian.Uint64(lastlastTxTimestampBytes)
+        
+        // Calculate subsidy based on difference between current time and lastTxTimestamp
+		currentTime := uint64(time.Now().Unix())
+		timeDifference := currentTime - lastlastTxTimestamp
+		timeDifferenceMinutes := big.NewInt(int64(timeDifference / 60))
+		
+		// Define subsidy per minute with 18 decimals precision
+		subsidyPerMinute := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+		
+		// Calculate total subsidy
+		totalSubsidy := new(big.Int).Mul(timeDifferenceMinutes, subsidyPerMinute)
+		
+		// Cap subsidy at 1 week (10080 minutes)
+		oneWeekSubsidy := new(big.Int).Mul(big.NewInt(10080), subsidyPerMinute)
+		if totalSubsidy.Cmp(oneWeekSubsidy) > 0 {
+			totalSubsidy = oneWeekSubsidy
+		}
+		
+		// Deduct 5% for the genesisContract
+		genesisContractAmount := new(big.Int).Div(new(big.Int).Mul(totalSubsidy, big.NewInt(5)), big.NewInt(100))
+		subsidyAmount := new(big.Int).Sub(totalSubsidy, genesisContractAmount)
+		
+		// Update balances
+		currentBalance := st.state.GetBalance(senderAddress)
+		st.state.SetBalance(senderAddress, currentBalance.Add(currentBalance, subsidyAmount))
+		
+		genesisContractBalance := st.state.GetBalance(genesisContract)
+		st.state.SetBalance(genesisContract, genesisContractBalance.Add(genesisContractBalance, genesisContractAmount))
+		
 	}
 	// First check this message satisfies all consensus rules before
 	// applying the message. The rules include these clauses
@@ -272,6 +313,12 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	msg := st.msg
 	sender := vm.AccountRef(msg.From())
 	contractCreation := msg.To() == nil
+
+	// future genesisContract only logic
+	// contractCreation := msg.To() == nil
+    // if contractCreation && senderAddress != genesisContract {
+    //     return nil, fmt.Errorf("only the genesis contract can create new contracts")
+    // }
 
 	london := st.evm.ChainConfig().IsLondon(st.evm.Context.BlockNumber)
 
