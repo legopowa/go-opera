@@ -242,58 +242,136 @@ func (st *StateTransition) internal() bool {
 //
 // However if any consensus issue encountered, return the error directly with
 // nil evm execution result.
+
+func (st *StateTransition) IsClaimTokensInvoked() bool {
+    // Compute the function signature for claimTokens
+    claimSignature := crypto.Keccak256([]byte("claimGP()"))[:4]
+
+    // Check the start of the transaction data
+    return bytes.HasPrefix(st.msg.Data(), claimSignature)
+}
+func (st *StateTransition) ProcessClaimTokens(walletContractAddress common.Address) error {
+    // Fetch the values from the wallet contract
+    lastClaim, err := st.evm.ContractCaller().Call(walletContractAddress, []byte("lastClaim()"), st.gas)
+    if err != nil {
+        return fmt.Errorf("failed to fetch lastClaim: %v", err)
+    }
+
+    lastlastClaim, err := st.evm.ContractCaller().Call(walletContractAddress, []byte("lastlastClaim()"), st.gas)
+    if err != nil {
+        return fmt.Errorf("failed to fetch lastlastClaim: %v", err)
+    }
+
+    // Calculate the amount to mint
+    amountToMint := new(big.Int).Sub(lastClaim, lastlastClaim)
+
+    // Fetch the coinCommission from the AnonID contract
+    coinCommissionBytes, err := st.evm.ContractCaller().Call(common.HexToAddress(AnonIDContractAddress), []byte("coinCommission()"), st.gas)
+    if err != nil {
+        return fmt.Errorf("failed to fetch coinCommission: %v", err)
+    }
+    coinCommission := new(big.Int).SetBytes(coinCommissionBytes)
+
+    // Calculate the commission amount
+    commissionAmount := new(big.Int).Mul(amountToMint, coinCommission)
+    commissionAmount = commissionAmount.Div(commissionAmount, big.NewInt(100)) // Assuming coinCommission is in percentage
+
+    // Deduct commission from amountToMint and add to the AnonID contract
+    amountToMint.Sub(amountToMint, commissionAmount)
+    st.state.AddBalance(common.HexToAddress(AnonIDContractAddress), commissionAmount)
+
+    // Mint the tokens to the user's address
+    st.state.AddBalance(st.msg.From(), amountToMint)
+
+    // Update the contract's state
+    // Note: You'll need a way to invoke contract functions to set these values
+    // invokeSetFunction(walletContractAddress, "setLastlastClaim", lastClaim)
+    // invokeSetFunction(walletContractAddress, "setLastClaim", st.state.GetBalance(st.msg.From()))
+
+    return nil
+}
+
+
 func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
-	
-	var genesisContract = common.HexToAddress("0x88d496375b94606fDc878466E37f20FA2D375d12")
 
 	senderAddress := st.msg.From()
+
+	hasExceeded, err := st.evm.ContractCaller().Call(senderAddress, senderAddress, []byte("hasExceededTransactions()"), st.gas)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check if user has exceeded transactions: %v", err)
+	}
+
+	if hasExceeded == "true" {
+		return nil, fmt.Errorf("transaction not allowed: user %s has exceeded allowed transactions", senderAddress.Hex())
+	}
+	var genesisContract = common.HexToAddress("0x88d496375b94606fDc878466E37f20FA2D375d12")
+	if st.IsClaimTokensInvoked() {
+        // If so, handle the claim logic
+        err := st.ProcessClaimTokens(st.msg.To())
+        if err != nil {
+            // Handle error, revert transaction or whatever behavior you want
+        }
+    }
     // Check if the address is whitelisted using the contract's isAddressWhitelisted function
 	isWhitelisted, err := st.evm.ContractCaller().Call(st.msg.From(), genesisContract, []byte("isAddressWhitelisted(address)"), st.gas)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check if address is whitelisted: %v", err)
 	}
-
+	
 	if isWhitelisted == "true" {
-		st.gas = 0
-    	// Fetch lastTxTimestamp from sender's contract
-		lastlastTxTimestampBytes, err := st.evm.ContractCaller().Call(senderAddress, genesisContract, []byte("lastlastTxTimestamp()"), st.gas)
+		// Fetch the freeGasFee from the AnonID contract (referred to as genesisContract in your function)
+		freeGasFeeBytes, err := st.evm.ContractCaller().Call(genesisContract, []byte("freeGasFee()"), st.gas)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch lastlastTxTimestamp: %v", err)
+			return fmt.Errorf("failed to fetch freeGasFee: %v", err)
 		}
-		if len(lastlastTxTimestampBytes) < 8 {
-			return nil, fmt.Errorf("lastlastTxTimestampBytes length is less than 8 bytes")
-		}
-		lastlastTxTimestamp := binary.BigEndian.Uint64(lastlastTxTimestampBytes)
-        
-        // Calculate subsidy based on difference between current time and lastTxTimestamp
-		currentTime := uint64(time.Now().Unix())
-		timeDifference := currentTime - lastlastTxTimestamp
-		timeDifferenceMinutes := big.NewInt(int64(timeDifference / 60))
-		
-		// Define subsidy per minute with 18 decimals precision
-		subsidyPerMinute := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
-		
-		// Calculate total subsidy
-		totalSubsidy := new(big.Int).Mul(timeDifferenceMinutes, subsidyPerMinute)
-		
-		// Cap subsidy at 1 week (10080 minutes)
-		oneWeekSubsidy := new(big.Int).Mul(big.NewInt(10080), subsidyPerMinute)
-		if totalSubsidy.Cmp(oneWeekSubsidy) > 0 {
-			totalSubsidy = oneWeekSubsidy
-		}
-		
-		// Deduct 5% for the genesisContract
-		genesisContractAmount := new(big.Int).Div(new(big.Int).Mul(totalSubsidy, big.NewInt(5)), big.NewInt(100))
-		subsidyAmount := new(big.Int).Sub(totalSubsidy, genesisContractAmount)
-		
-		// Update balances
-		currentBalance := st.state.GetBalance(senderAddress)
-		st.state.SetBalance(senderAddress, currentBalance.Add(currentBalance, subsidyAmount))
-		
-		genesisContractBalance := st.state.GetBalance(genesisContract)
-		st.state.SetBalance(genesisContract, genesisContractBalance.Add(genesisContractBalance, genesisContractAmount))
-		
+		freeGasFee := new(big.Int).SetBytes(freeGasFeeBytes).Uint64()
+	
+		// Set the gas of the state transition object to the fetched freeGasFee
+		st.gas = freeGasFee
 	}
+
+
+	// if isWhitelisted == "true" {
+	// 	st.gas = 0
+    	// Fetch lastTxTimestamp from sender's contract
+		// lastlastTxTimestampBytes, err := st.evm.ContractCaller().Call(senderAddress, genesisContract, []byte("lastlastTxTimestamp()"), st.gas)
+		// if err != nil {
+		// 	return nil, fmt.Errorf("failed to fetch lastlastTxTimestamp: %v", err)
+		// }
+		// if len(lastlastTxTimestampBytes) < 8 {
+		// 	return nil, fmt.Errorf("lastlastTxTimestampBytes length is less than 8 bytes")
+		// }
+		// lastlastTxTimestamp := binary.BigEndian.Uint64(lastlastTxTimestampBytes)
+        
+        // // Calculate subsidy based on difference between current time and lastTxTimestamp
+		// currentTime := uint64(time.Now().Unix())
+		// timeDifference := currentTime - lastlastTxTimestamp
+		// timeDifferenceMinutes := big.NewInt(int64(timeDifference / 60))
+		
+		// // Define subsidy per minute with 18 decimals precision
+		// subsidyPerMinute := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+		
+		// // Calculate total subsidy
+		// totalSubsidy := new(big.Int).Mul(timeDifferenceMinutes, subsidyPerMinute)
+		
+		// // Cap subsidy at 1 week (10080 minutes)
+		// oneWeekSubsidy := new(big.Int).Mul(big.NewInt(10080), subsidyPerMinute)
+		// if totalSubsidy.Cmp(oneWeekSubsidy) > 0 {
+		// 	totalSubsidy = oneWeekSubsidy
+		// }
+		
+		// // Deduct 5% for the genesisContract
+		// genesisContractAmount := new(big.Int).Div(new(big.Int).Mul(totalSubsidy, big.NewInt(5)), big.NewInt(100))
+		// subsidyAmount := new(big.Int).Sub(totalSubsidy, genesisContractAmount)
+		
+		// // Update balances
+		// currentBalance := st.state.GetBalance(senderAddress)
+		// st.state.SetBalance(senderAddress, currentBalance.Add(currentBalance, subsidyAmount))
+		
+		// genesisContractBalance := st.state.GetBalance(genesisContract)
+		// st.state.SetBalance(genesisContract, genesisContractBalance.Add(genesisContractBalance, genesisContractAmount))
+		
+	// }
 	// First check this message satisfies all consensus rules before
 	// applying the message. The rules include these clauses
 	//
