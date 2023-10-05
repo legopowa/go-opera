@@ -20,7 +20,8 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-
+	"bytes"
+	"errors"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -58,6 +59,7 @@ type StateTransition struct {
 	data       []byte
 	state      vm.StateDB
 	evm        *vm.EVM
+	contractCaller *ContractCaller
 }
 
 // Message represents a message sent to a contract.
@@ -111,7 +113,35 @@ func (result *ExecutionResult) Revert() []byte {
 	}
 	return common.CopyBytes(result.ReturnData)
 }
+type ContractCaller struct {
+	evm *vm.EVM
+}
 
+// Call executes a call to a contract, returning the result.
+func (cc *ContractCaller) Call(from common.Address, contractAddress common.Address, data []byte, gas uint64) ([]byte, error) {
+	if cc.evm == nil {
+		return nil, errors.New("evm instance is not initialized")
+	}
+
+	// Define a call message.
+	// msg := types.NewMessage(
+	// 	from,                       // From
+	// 	&contractAddress,           // To
+	// 	0,                          // Nonce
+	// 	big.NewInt(0),              // Value
+	// 	gas,                        // GasLimit
+	// 	big.NewInt(0),              // GasPrice
+	// 	big.NewInt(0),              // GasFeeCap (EIP-1559)
+	// 	big.NewInt(0),              // GasTipCap (EIP-1559)
+	// 	data,                       // Data
+	// 	nil,                        // AccessList (you might need to provide a valid one if necessary)
+	// 	false,                      // CheckNonce
+	// )
+
+	// Use the EVM's Call method to get the result.
+	ret, _, err := cc.evm.Call(vm.AccountRef(from), contractAddress, data, gas, big.NewInt(0))
+	return ret, err
+}
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
 func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation bool) (uint64, error) {
 	// Set the starting gas for the raw transaction
@@ -150,8 +180,21 @@ func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation b
 }
 
 // NewStateTransition initialises and returns a new state transition object.
+// func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition {
+// 	st.contractCaller = &ContractCaller{evm: st.evm}
+// 	return &StateTransition{
+// 		gp:       gp,
+// 		evm:      evm,
+// 		msg:      msg,
+// 		gasPrice: msg.GasPrice(),
+// 		value:    msg.Value(),
+// 		data:     msg.Data(),
+// 		state:    evm.StateDB,
+// 	}
+// }
+// NewStateTransition initialises and returns a new state transition object.
 func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition {
-	return &StateTransition{
+	st := &StateTransition{
 		gp:       gp,
 		evm:      evm,
 		msg:      msg,
@@ -160,7 +203,10 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition 
 		data:     msg.Data(),
 		state:    evm.StateDB,
 	}
+	st.contractCaller = &ContractCaller{evm: st.evm}
+	return st
 }
+
 
 // ApplyMessage computes the new state by applying the given message
 // against the old state within the environment.
@@ -243,6 +289,8 @@ func (st *StateTransition) internal() bool {
 // However if any consensus issue encountered, return the error directly with
 // nil evm execution result.
 
+// ContractCaller allows for calling contract methods without state modification.
+
 func (st *StateTransition) IsClaimTokensInvoked() bool {
     // Compute the function signature for claimTokens
     claimSignature := crypto.Keccak256([]byte("claimGP()"))[:4]
@@ -251,22 +299,27 @@ func (st *StateTransition) IsClaimTokensInvoked() bool {
     return bytes.HasPrefix(st.msg.Data(), claimSignature)
 }
 func (st *StateTransition) ProcessClaimTokens(walletContractAddress common.Address) error {
-    // Fetch the values from the wallet contract
-    lastClaim, err := st.evm.ContractCaller().Call(walletContractAddress, []byte("lastClaim()"), st.gas)
+
+	var AnonIDContractAddress = common.HexToAddress("0x88d496375b94606fDc878466E37f20FA2D375d12")
+
+	// Fetch the values from the wallet contract
+    lastClaim, err := st.contractCaller.Call(st.evm.Context.Coinbase, walletContractAddress, []byte("lastClaim()"), st.gas)
     if err != nil {
         return fmt.Errorf("failed to fetch lastClaim: %v", err)
     }
 
-    lastlastClaim, err := st.evm.ContractCaller().Call(walletContractAddress, []byte("lastlastClaim()"), st.gas)
+    lastlastClaim, err := st.contractCaller.Call(st.evm.Context.Coinbase, walletContractAddress, []byte("lastlastClaim()"), st.gas)
     if err != nil {
         return fmt.Errorf("failed to fetch lastlastClaim: %v", err)
     }
 
-    // Calculate the amount to mint
-    amountToMint := new(big.Int).Sub(lastClaim, lastlastClaim)
+	lastClaimInt := new(big.Int).SetBytes(lastClaim)
+	lastlastClaimInt := new(big.Int).SetBytes(lastlastClaim)
+	amountToMint := new(big.Int).Sub(lastClaimInt, lastlastClaimInt)
+	
 
     // Fetch the coinCommission from the AnonID contract
-    coinCommissionBytes, err := st.evm.ContractCaller().Call(common.HexToAddress(AnonIDContractAddress), []byte("coinCommission()"), st.gas)
+    coinCommissionBytes, err := st.contractCaller.Call(st.evm.Context.Coinbase, AnonIDContractAddress, []byte("coinCommission()"), st.gas)
     if err != nil {
         return fmt.Errorf("failed to fetch coinCommission: %v", err)
     }
@@ -278,7 +331,7 @@ func (st *StateTransition) ProcessClaimTokens(walletContractAddress common.Addre
 
     // Deduct commission from amountToMint and add to the AnonID contract
     amountToMint.Sub(amountToMint, commissionAmount)
-    st.state.AddBalance(common.HexToAddress(AnonIDContractAddress), commissionAmount)
+    st.state.AddBalance(AnonIDContractAddress, commissionAmount)
 
     // Mint the tokens to the user's address
     st.state.AddBalance(st.msg.From(), amountToMint)
@@ -296,33 +349,33 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 	senderAddress := st.msg.From()
 
-	hasExceeded, err := st.evm.ContractCaller().Call(senderAddress, senderAddress, []byte("hasExceededTransactions()"), st.gas)
+	hasExceeded, err := st.contractCaller.Call(st.evm.Context.Coinbase, senderAddress, []byte("hasExceededTransactions()"), st.gas)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check if user has exceeded transactions: %v", err)
 	}
 
-	if hasExceeded == "true" {
+	if string(hasExceeded) == "true" {
 		return nil, fmt.Errorf("transaction not allowed: user %s has exceeded allowed transactions", senderAddress.Hex())
 	}
-	var genesisContract = common.HexToAddress("0x88d496375b94606fDc878466E37f20FA2D375d12")
+	var AnonIDContractAddress = common.HexToAddress("0x88d496375b94606fDc878466E37f20FA2D375d12")
 	if st.IsClaimTokensInvoked() {
         // If so, handle the claim logic
-        err := st.ProcessClaimTokens(st.msg.To())
+        err := st.ProcessClaimTokens(*st.msg.To())
         if err != nil {
             // Handle error, revert transaction or whatever behavior you want
         }
     }
     // Check if the address is whitelisted using the contract's isAddressWhitelisted function
-	isWhitelisted, err := st.evm.ContractCaller().Call(st.msg.From(), genesisContract, []byte("isAddressWhitelisted(address)"), st.gas)
+	isWhitelisted, err := st.contractCaller.Call(st.msg.From(), AnonIDContractAddress, []byte("isAddressWhitelisted(address)"), st.gas)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check if address is whitelisted: %v", err)
 	}
-	
-	if isWhitelisted == "true" {
+
+	if string(isWhitelisted) == "true" {
 		// Fetch the freeGasFee from the AnonID contract (referred to as genesisContract in your function)
-		freeGasFeeBytes, err := st.evm.ContractCaller().Call(genesisContract, []byte("freeGasFee()"), st.gas)
+		freeGasFeeBytes, err := st.contractCaller.Call(st.evm.Context.Coinbase, AnonIDContractAddress, []byte("freeGasFee()"), st.gas)
 		if err != nil {
-			return fmt.Errorf("failed to fetch freeGasFee: %v", err)
+			return nil, fmt.Errorf("failed to fetch freeGasFee: %v", err)
 		}
 		freeGasFee := new(big.Int).SetBytes(freeGasFeeBytes).Uint64()
 	
