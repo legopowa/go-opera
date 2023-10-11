@@ -15,9 +15,9 @@ import (
 )
 
 const (
-	MainNetworkID   uint64 = 0xfa
-	TestNetworkID   uint64 = 0xfa2
-	FakeNetworkID   uint64 = 0xfa3
+	MainNetworkID   uint64 = 0x1504A
+	TestNetworkID   uint64 = 0x12755
+	FakeNetworkID   uint64 = 0x1504A
 	DefaultEventGas uint64 = 28000
 	berlinBit              = 1 << 0
 	londonBit              = 1 << 1
@@ -178,25 +178,37 @@ func TestNetRules() Rules {
 	}
 }
 
+// func FakeNetRules() Rules {
+// 	return Rules{
+// 		Name:      "fake",
+// 		NetworkID: FakeNetworkID,
+// 		Dag:       DefaultDagRules(),
+// 		Epochs:    FakeNetEpochsRules(),
+// 		Economy:   FakeEconomyRules(),
+// 		Blocks: BlocksRules{
+// 			MaxBlockGas:             20500000,
+// 			MaxEmptyBlockSkipPeriod: inter.Timestamp(3 * time.Second),
+// 		},
+// 		Upgrades: Upgrades{
+// 			Berlin: true,
+// 			London: true,
+// 			Llr:    true,
+// 		},
+// 	}
+// }
 func FakeNetRules() Rules {
 	return Rules{
-		Name:      "fake",
-		NetworkID: FakeNetworkID,
+		Name:      "main",
+		NetworkID: MainNetworkID,
 		Dag:       DefaultDagRules(),
-		Epochs:    FakeNetEpochsRules(),
-		Economy:   FakeEconomyRules(),
+		Epochs:    DefaultEpochsRules(),
+		Economy:   DefaultEconomyRules(),
 		Blocks: BlocksRules{
 			MaxBlockGas:             20500000,
-			MaxEmptyBlockSkipPeriod: inter.Timestamp(3 * time.Second),
-		},
-		Upgrades: Upgrades{
-			Berlin: true,
-			London: true,
-			Llr:    true,
+			MaxEmptyBlockSkipPeriod: inter.Timestamp(1 * time.Minute),
 		},
 	}
 }
-
 // DefaultEconomyRules returns mainnet economy
 func DefaultEconomyRules() EconomyRules {
 	return EconomyRules{
@@ -208,13 +220,23 @@ func DefaultEconomyRules() EconomyRules {
 	}
 }
 
-// FakeEconomyRules returns fakenet economy
+// DefaultEconomyRules returns mainnet economy
 func FakeEconomyRules() EconomyRules {
-	cfg := DefaultEconomyRules()
-	cfg.ShortGasPower = FakeShortGasPowerRules()
-	cfg.LongGasPower = FakeLongGasPowerRules()
-	return cfg
+	return EconomyRules{
+		BlockMissedSlack: 50,
+		Gas:              DefaultGasRules(),
+		MinGasPrice:      big.NewInt(1e9),
+		ShortGasPower:    DefaultShortGasPowerRules(),
+		LongGasPower:     DefaulLongGasPowerRules(),
+	}
 }
+// // FakeEconomyRules returns fakenet economy
+// func FakeEconomyRules() EconomyRules {
+// 	cfg := DefaultEconomyRules()
+// 	cfg.ShortGasPower = FakeShortGasPowerRules()
+// 	cfg.LongGasPower = FakeLongGasPowerRules()
+// 	return cfg
+// }
 
 func DefaultDagRules() DagRules {
 	return DagRules{
@@ -244,11 +266,19 @@ func DefaultGasRules() GasRules {
 	}
 }
 
-func FakeNetEpochsRules() EpochsRules {
-	cfg := DefaultEpochsRules()
-	cfg.MaxEpochGas /= 5
-	cfg.MaxEpochDuration = inter.Timestamp(10 * time.Minute)
-	return cfg
+// func FakeNetEpochsRules() EpochsRules {
+// 	cfg := DefaultEpochsRules()
+// 	cfg.MaxEpochGas /= 5
+// 	cfg.MaxEpochDuration = inter.Timestamp(10 * time.Minute)
+// 	return cfg
+// }
+
+
+func FakeEpochsRules() EpochsRules {
+	return EpochsRules{
+		MaxEpochGas:      1500000000,
+		MaxEpochDuration: inter.Timestamp(4 * time.Hour),
+	}
 }
 
 // DefaulLongGasPowerRules is long-window config
@@ -271,19 +301,41 @@ func DefaultShortGasPowerRules() GasPowerRules {
 	return cfg
 }
 
-// FakeLongGasPowerRules is fake long-window config
+
+// DefaulLongGasPowerRules is long-window config
 func FakeLongGasPowerRules() GasPowerRules {
-	config := DefaulLongGasPowerRules()
-	config.AllocPerSec *= 1000
-	return config
+	return GasPowerRules{
+		AllocPerSec:        100 * DefaultEventGas,
+		MaxAllocPeriod:     inter.Timestamp(60 * time.Minute),
+		StartupAllocPeriod: inter.Timestamp(5 * time.Second),
+		MinStartupGas:      DefaultEventGas * 20,
+	}
 }
 
+// FakeLongGasPowerRules is fake long-window config
+// func FakeLongGasPowerRules() GasPowerRules {
+// 	config := DefaulLongGasPowerRules()
+// 	config.AllocPerSec *= 1000
+// 	return config
+// }
+
 // FakeShortGasPowerRules is fake short-window config
-func FakeShortGasPowerRules() GasPowerRules {
-	config := DefaultShortGasPowerRules()
-	config.AllocPerSec *= 1000
-	return config
+// func FakeShortGasPowerRules() GasPowerRules {
+// 	config := DefaultShortGasPowerRules()
+// 	config.AllocPerSec *= 1000
+// 	return config
+// }
+
+// DefaulLongGasPowerRules is long-window config
+func FakeLongGasPowerRules() GasPowerRules {
+	return GasPowerRules{
+		AllocPerSec:        100 * DefaultEventGas,
+		MaxAllocPeriod:     inter.Timestamp(60 * time.Minute),
+		StartupAllocPeriod: inter.Timestamp(5 * time.Second),
+		MinStartupGas:      DefaultEventGas * 20,
+	}
 }
+
 
 func (r Rules) Copy() Rules {
 	cp := r
