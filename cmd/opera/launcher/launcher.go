@@ -283,6 +283,8 @@ func lachesisMain(ctx *cli.Context) error {
 	return nil
 }
 
+
+
 func makeNode(ctx *cli.Context, cfg *config, genesisStore *genesisstore.Store) (*node.Node, *gossip.Service, func()) {
 	// check errlock file
 	errlock.SetDefaultDatadir(cfg.Node.DataDir)
