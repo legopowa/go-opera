@@ -327,14 +327,7 @@ func FakeLongGasPowerRules() GasPowerRules {
 // }
 
 // DefaulLongGasPowerRules is long-window config
-func FakeLongGasPowerRules() GasPowerRules {
-	return GasPowerRules{
-		AllocPerSec:        100 * DefaultEventGas,
-		MaxAllocPeriod:     inter.Timestamp(60 * time.Minute),
-		StartupAllocPeriod: inter.Timestamp(5 * time.Second),
-		MinStartupGas:      DefaultEventGas * 20,
-	}
-}
+
 
 
 func (r Rules) Copy() Rules {
