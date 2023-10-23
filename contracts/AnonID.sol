@@ -3,6 +3,8 @@
 pragma solidity ^0.8.1;
 
 abstract contract AnonIDContract {
+    
+    uint256 public freeGasFee; // Add this state variable for freeGasFee
 
     bool initialized = false;
     bool public lastVerificationResult;
@@ -17,29 +19,28 @@ abstract contract AnonIDContract {
     }
     // Mapping of permitted contracts
     mapping(address => bool) public isContractPermitted;
-    mapping(address => bool) public whitelist;
+    mapping(bytes32 => address) public whitelist;
 
     function addToWhitelist(address _address, string memory govID) external {
         require(isContractPermitted[msg.sender], "Not permitted to modify whitelist");
         
         bytes32 hashedID = keccak256(abi.encodePacked(govID));
-        require(hashedIDtoAddress[hashedID] == address(0), "Hashed ID collision detected");
+        require(whitelist[hashedID] == address(0), "Hashed ID collision detected");
 
-        isWhitelisted[_address] = true;
-        hashedIDtoAddress[hashedID] = _address;
+        whitelist[hashedID] = _address;
     }
 
     // Remove an address from the whitelist
-    function removeFromWhitelist(address _address) external {
+    function removeFromWhitelist(string memory govID) external {
         require(isContractPermitted[msg.sender], "Not permitted to modify whitelist");
 
-        isWhitelisted[_address] = false;
-        // Optionally, you can also delete the hashedID associated with the address. 
-        // for (bytes32 id in hashedIDtoAddress) { if (hashedIDtoAddress[id] == _address) delete hashedIDtoAddress[id]; }
+        bytes32 hashedID = keccak256(abi.encodePacked(govID));
+        delete whitelist[hashedID];
     }
 
-    function isWhitelisted(address _address) external view returns (bool) {
-        return whitelist[_address];
+    function isWhitelisted(string memory govID) external view returns (address) {
+        bytes32 hashedID = keccak256(abi.encodePacked(govID));
+        return whitelist[hashedID];
     }
     // Function to grant permission to a contract
     function grantContractPermission(address contractAddress, bytes32[2][256] calldata currentpub, bytes[256] calldata sig, bytes32 nextPKH) public onlyLamportMaster(currentpub, sig, nextPKH, abi.encodePacked(contractAddress)) {
@@ -180,7 +181,7 @@ abstract contract AnonIDContract {
                     KeyType originalKeyType = keyData[targetPKH].keyType; // Store the original KeyType
                     // Overwriting the first 7 characters with "de1e7ed" and the rest with random values
                     bytes32 modifiedPKH = 0xde1e7ed000000000000000000000000000000000000000000000000000000000;
-                    uint256 randomValue = uint256(keccak256(abi.encodePacked(block.timestamp, block.difficulty)));
+                    uint256 randomValue = uint256(keccak256(abi.encodePacked(block.timestamp, block.prevrandao)));
                     modifiedPKH ^= bytes32(randomValue); // XOR to keep "de1e7ed" in the first 7 characters
                     
                     // Modify the existing entry instead of deleting it
@@ -364,7 +365,21 @@ abstract contract AnonIDContract {
       
     }
 
-    function createContract(bytes memory bytecode) public onlyLamportMaster returns (address) {
+    function createContractFromMaster(
+        bytes32[2][256] calldata currentpub,
+        bytes32 nextPKH,
+        bytes[256] calldata sig,
+        bytes memory bytecode
+    )
+        public
+        onlyLamportMaster(
+            currentpub,
+            sig,
+            nextPKH,
+            abi.encodePacked(bytecode)
+        )
+        returns (address)
+    {
         address newContract;
         assembly {
             newContract := create(0, add(bytecode, 0x20), mload(bytecode))
