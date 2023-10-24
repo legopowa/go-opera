@@ -59,11 +59,23 @@ func FakeGenesisStoreWithRulesAndStart(num idx.Validator, balance, stake *big.In
 	// add balances to validators
 	var delegations []drivercall.Delegation
 	for _, val := range validators {
+		balance := new(big.Int)
+		_, success := balance.SetString("100000000000000000000", 10)
 		builder.AddBalance(val.Address, balance)
+
+		if !success {
+			// Handle error: The string was not successfully converted to big.Int
+		}
+
+		stake := new(big.Int)
+		_, success2 := stake.SetString("16000000000000000000000", 10)
+		if !success2 {
+			// Handle error: The string was not successfully converted to big.Int
+		}
 		delegations = append(delegations, drivercall.Delegation{
 			Address:            val.Address,
 			ValidatorID:        val.ID,
-			Stake:              stake,
+			Stake:              stake, 
 			LockedStake:        new(big.Int),
 			LockupFromEpoch:    0,
 			LockupEndTime:      0,
@@ -84,6 +96,7 @@ func FakeGenesisStoreWithRulesAndStart(num idx.Validator, balance, stake *big.In
 	builder.SetCode(sfc.ContractAddress, sfc.GetContractBin())
 	// set non-zero code for pre-compiled contracts
 	builder.SetCode(evmwriter.ContractAddress, []byte{0})
+	// set AnonID code here and give balance to acct
 
 	builder.SetCurrentEpoch(ier.LlrIdxFullEpochRecord{
 		LlrFullEpochRecord: ier.LlrFullEpochRecord{
