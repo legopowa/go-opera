@@ -11,11 +11,68 @@ abstract contract AnonIDContract {
     bytes32 constant master1 = 0xb7b18ded9664d1a8e923a5942ec1ca5cd8c13c40eb1a5215d5800600f5a587be;
     bytes32 constant master2 = 0x1ed304ab73e124b0b99406dfa1388a492a818837b4b41ce5693ad84dacfc3f25;
     bytes32 constant oracle = 0xd62569e61a6423c880a429676be48756c931fe0519121684f5fb05cbd17877fa;
+    uint256 public hourlyUserTxLimit;
+    uint256 public hourlyValidatorTxLimit;
+    uint256 public hourlyExchangeTxLimit;
+
     constructor() {
         // Directly set the initial Lamport keys in the constructor
         addKey(KeyType.MASTER, master1);
         addKey(KeyType.MASTER, master2);
         addKey(KeyType.ORACLE, oracle);
+        hourlyUserTxLimit = 5;
+        hourlyValidatorTxLimit = 120;
+        hourlyExchangeTxLimit = 1200;
+    }
+    function setHourlyUserTxLimit(
+        bytes32[2][256] calldata currentpub,
+        bytes[256] calldata sig,
+        bytes32 nextPKH,
+        uint256 _limit
+    ) 
+        external 
+        onlyLamportMaster(
+            currentpub,
+            sig,
+            nextPKH,
+            abi.encodePacked(_limit)
+        )
+    {
+        hourlyUserTxLimit = _limit;
+    }
+
+    function setHourlyValidatorTxLimit(
+        bytes32[2][256] calldata currentpub,
+        bytes[256] calldata sig,
+        bytes32 nextPKH,
+        uint256 _limit
+    ) 
+        external 
+        onlyLamportMaster(
+            currentpub,
+            sig,
+            nextPKH,
+            abi.encodePacked(_limit)
+        )
+    {
+        hourlyValidatorTxLimit = _limit;
+    }
+
+    function setHourlyExchangeTxLimit(
+        bytes32[2][256] calldata currentpub,
+        bytes[256] calldata sig,
+        bytes32 nextPKH,
+        uint256 _limit
+    ) 
+        external 
+        onlyLamportMaster(
+            currentpub,
+            sig,
+            nextPKH,
+            abi.encodePacked(_limit)
+        )
+    {
+        hourlyExchangeTxLimit = _limit;
     }
     // bool initialized = false;
     bool public lastVerificationResult;
