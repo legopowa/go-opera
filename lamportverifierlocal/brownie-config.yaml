@@ -1,0 +1,6 @@
+networks:
+  ganache:
+    host: 127.0.0.1
+    port: 8545
+    gas_limit: 10000000
+    gas_price: 0

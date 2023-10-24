@@ -1,0 +1,213 @@
+[   
+    {
+    "anonymous": false,
+    "inputs": [
+        {
+        "indexed": false,
+        "internalType": "string",
+        "name": "message",
+        "type": "string"
+        }
+    ],
+    "name": "Message",
+    "type": "event"
+    },
+    {
+    "anonymous": false,
+    "inputs": [
+        {
+        "indexed": false,
+        "internalType": "string",
+        "name": "message",
+        "type": "string"
+        },
+        {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "number",
+        "type": "uint256"
+        }
+    ],
+    "name": "MessageWithNumber",
+    "type": "event"
+    },
+    {
+    "anonymous": false,
+    "inputs": [
+        {
+        "indexed": false,
+        "internalType": "string",
+        "name": "message",
+        "type": "string"
+        },
+        {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "number",
+        "type": "uint256"
+        },
+        {
+        "indexed": false,
+        "internalType": "address",
+        "name": "addr",
+        "type": "address"
+        }
+    ],
+    "name": "MessageWithNumberAndAddress",
+    "type": "event"
+    },
+    {
+    "inputs": [
+        {
+        "internalType": "string",
+        "name": "messageToBroadcast",
+        "type": "string"
+        },
+        {
+        "internalType": "bytes32[2][256]",
+        "name": "currentpub",
+        "type": "bytes32[2][256]"
+        },
+        {
+        "internalType": "bytes32",
+        "name": "nextPKH",
+        "type": "bytes32"
+        },
+        {
+        "internalType": "bytes[256]",
+        "name": "sig",
+        "type": "bytes[256]"
+        }
+    ],
+    "name": "broadcast",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+    },
+    {
+    "inputs": [
+        {
+        "internalType": "string",
+        "name": "messageToBroadcast",
+        "type": "string"
+        },
+        {
+        "internalType": "uint256",
+        "name": "numberToBroadcast",
+        "type": "uint256"
+        },
+        {
+        "internalType": "bytes32[2][256]",
+        "name": "currentpub",
+        "type": "bytes32[2][256]"
+        },
+        {
+        "internalType": "bytes32",
+        "name": "nextPKH",
+        "type": "bytes32"
+        },
+        {
+        "internalType": "bytes[256]",
+        "name": "sig",
+        "type": "bytes[256]"
+        }
+    ],
+    "name": "broadcastWithNumber",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+    },
+    {
+    "inputs": [
+        {
+        "internalType": "string",
+        "name": "messageToBroadcast",
+        "type": "string"
+        },
+        {
+        "internalType": "uint256",
+        "name": "numberToBroadcast",
+        "type": "uint256"
+        },
+        {
+        "internalType": "address",
+        "name": "addrToBroadcast",
+        "type": "address"
+        },
+        {
+        "internalType": "bytes32[2][256]",
+        "name": "currentpub",
+        "type": "bytes32[2][256]"
+        },
+        {
+        "internalType": "bytes32",
+        "name": "nextPKH",
+        "type": "bytes32"
+        },
+        {
+        "internalType": "bytes[256]",
+        "name": "sig",
+        "type": "bytes[256]"
+        }
+    ],
+    "name": "broadcastWithNumberAndAddress",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+    },
+    {
+    "inputs": [],
+    "name": "getPKH",
+    "outputs": [
+        {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+        }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+    },
+    {
+    "inputs": [
+        {
+        "internalType": "bytes32",
+        "name": "firstPKH",
+        "type": "bytes32"
+        }
+    ],
+    "name": "init",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+    },
+    {
+    "inputs": [
+        {
+        "internalType": "uint256",
+        "name": "bits",
+        "type": "uint256"
+        },
+        {
+        "internalType": "bytes[256]",
+        "name": "sig",
+        "type": "bytes[256]"
+        },
+        {
+        "internalType": "bytes32[2][256]",
+        "name": "pub",
+        "type": "bytes32[2][256]"
+        }
+    ],
+    "name": "verify_u256",
+    "outputs": [
+        {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+        }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+    }
+]

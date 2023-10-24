@@ -1,0 +1,2 @@
+cytoolz==0.12.2
+pyyaml==6.0.1

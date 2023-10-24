@@ -1,0 +1,103 @@
+
+{
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "string",
+                "name": "message",
+                "type": "string",
+            }
+        ],
+        "name": "Message",
+        "type": "event"
+    },
+    {
+        "inputs": [],
+        "name": "getPublicKey",
+        "outputs": [
+            {
+                "internalType": "bytes32[2][256]",
+                "name": "",
+                "type": "bytes32[2][256]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function",
+        "constant": true
+    },
+    {
+        "inputs": [],
+        "name": "getTipJar",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function",
+        "constant": true
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "bytes32[2][256]",
+                "name": "firstPublicKey",
+                "type": "bytes32[2][256]"
+            }
+        ],
+        "name": "init",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "newTipJar",
+                "type": "address"
+            },
+            {
+                "internalType": "bytes32[2][256]",
+                "name": "nextpub",
+                "type": "bytes32[2][256]"
+            },
+            {
+                "internalType": "bytes[256]",
+                "name": "sig",
+                "type": "bytes[256]"
+            }
+        ],
+        "name": "change_tip_jar",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "string",
+                "name": "messageToBroadcast",
+                "type": "string"
+            },
+            {
+                "internalType": "bytes32[2][256]",
+                "name": "nextpub",
+                "type": "bytes32[2][256]"
+            },
+            {
+                "internalType": "bytes[256]",
+                "name": "sig",
+                "type": "bytes[256]",
+            }
+        ],
+        "name": "broadcast",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    }
+}
