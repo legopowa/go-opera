@@ -5,6 +5,7 @@ pragma solidity ^0.8.1;
 abstract contract AnonIDContract {
     
     uint256 public freeGasFee; // Add this state variable for freeGasFee
+    bytes32 public lastUsedBytecodeHash;
 
     bool initialized = false;
     bool public lastVerificationResult;
@@ -365,10 +366,32 @@ abstract contract AnonIDContract {
       
     }
 
-    function createContractFromMaster(
+    // function createContractFromMaster(
+    //     bytes32[2][256] calldata currentpub,
+    //     bytes32 nextPKH,
+    //     bytes[256] calldata sig,
+    //     bytes memory bytecode
+    // )
+    //     public
+    //     onlyLamportMaster(
+    //         currentpub,
+    //         sig,
+    //         nextPKH,
+    //         abi.encodePacked(bytecode)
+    //     )
+    //     returns (address)
+    // {
+    //     address newContract;
+    //     assembly {
+    //         newContract := create(0, add(bytecode, 0x20), mload(bytecode))
+    //     }
+    //     require(newContract != address(0), "Contract creation failed");
+    //     return newContract;
+    // }
+    function createContractStepOne(
         bytes32[2][256] calldata currentpub,
-        bytes32 nextPKH,
         bytes[256] calldata sig,
+        bytes32 nextPKH,
         bytes memory bytecode
     )
         public
@@ -376,10 +399,30 @@ abstract contract AnonIDContract {
             currentpub,
             sig,
             nextPKH,
-            abi.encodePacked(bytecode)
+            bytecode
+        )
+    {
+        // Save the hash of the bytecode in a global variable
+        lastUsedBytecodeHash = keccak256(bytecode);
+    }
+
+    function createContractStepTwo(
+        bytes32[2][256] calldata currentpub,
+        bytes[256] calldata sig,
+        bytes32 nextPKH,
+        bytes memory bytecode
+    )
+        public
+        onlyLamportMaster(
+            currentpub,
+            sig,
+            nextPKH,
+            bytecode
         )
         returns (address)
     {
+         // Verify bytecode hash matches
+        require(keccak256(bytecode) == lastUsedBytecodeHash, "Bytecode does not match previously provided bytecode.");
         address newContract;
         assembly {
             newContract := create(0, add(bytecode, 0x20), mload(bytecode))
@@ -387,7 +430,6 @@ abstract contract AnonIDContract {
         require(newContract != address(0), "Contract creation failed");
         return newContract;
     }
-
     function setFreeGasFee(uint256 _newFee, bytes32[2][256] calldata currentpub, bytes[256] calldata sig, bytes32 nextPKH) public onlyLamportMaster(currentpub, sig, nextPKH, abi.encodePacked(_newFee)) {
         freeGasFee = _newFee;
     }
