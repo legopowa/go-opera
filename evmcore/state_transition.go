@@ -22,7 +22,9 @@ import (
 	"math/big"
 	"bytes"
 	"errors"
+	"strings"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -298,18 +300,33 @@ func (st *StateTransition) IsClaimTokensInvoked() bool {
     // Check the start of the transaction data
     return bytes.HasPrefix(st.msg.Data(), claimSignature)
 }
+func encodeUserAddress(userAddress common.Address) []byte {
+	const functionABI = `[{"constant":false,"inputs":[{"name":"user","type":"address"}],"name":"lastClaim","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"}]`
+	
+	parsedABI, err := abi.JSON(strings.NewReader(functionABI))
+	if err != nil {
+		fmt.Errorf("Failed to parse ABI: %v", err)
+	}
 
+	encodedData, err := parsedABI.Pack("lastClaim", userAddress)
+	if err != nil {
+		fmt.Errorf("Failed to ABI encode: %v", err)
+	}
+
+	return encodedData
+}
 func (st *StateTransition) ProcessClaimTokens() error {
     var AnonIDContractAddress = common.HexToAddress("0x31337b00000000000daaaaaaaaaaaaa5")
     userAddress := st.msg.From()
+    encodedUserAddress := encodeUserAddress(userAddress)
 
     // Fetch the values from the AnonID contract
-    lastClaim, err := st.contractCaller.Call(st.evm.Context.Coinbase, AnonIDContractAddress, []byte("lastClaim(address)"), userAddress, st.gas)
+	lastClaim, err := st.contractCaller.Call(st.evm.Context.Coinbase, AnonIDContractAddress, append([]byte("lastClaim(address)"), encodedUserAddress...), st.gas)
     if err != nil {
         return fmt.Errorf("failed to fetch lastClaim: %v", err)
     }
 
-    lastlastClaim, err := st.contractCaller.Call(st.evm.Context.Coinbase, AnonIDContractAddress, []byte("lastLastClaim(address)"), userAddress, st.gas)
+    lastlastClaim, err := st.contractCaller.Call(st.evm.Context.Coinbase, AnonIDContractAddress, append([]byte("lastLastClaim(address)"), encodedUserAddress...), st.gas)
     if err != nil {
         return fmt.Errorf("failed to fetch lastlastClaim: %v", err)
     }
@@ -359,7 +376,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	var AnonIDContractAddress = common.HexToAddress("0x31337b00000000000daaaaaaaaaaaaa5")
 	if st.IsClaimTokensInvoked() {
         // If so, handle the claim logic
-        err := st.ProcessClaimTokens(*st.msg.To())
+        err := st.ProcessClaimTokens()
         if err != nil {
             // Handle error, revert transaction or whatever behavior you want
         }
