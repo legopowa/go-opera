@@ -298,25 +298,25 @@ func (st *StateTransition) IsClaimTokensInvoked() bool {
     // Check the start of the transaction data
     return bytes.HasPrefix(st.msg.Data(), claimSignature)
 }
-func (st *StateTransition) ProcessClaimTokens(walletContractAddress common.Address) error {
 
-	var AnonIDContractAddress = common.HexToAddress("0x88d496375b94606fDc878466E37f20FA2D375d12")
+func (st *StateTransition) ProcessClaimTokens() error {
+    var AnonIDContractAddress = common.HexToAddress("0x31337b00000000000daaaaaaaaaaaaa5")
+    userAddress := st.msg.From()
 
-	// Fetch the values from the wallet contract
-    lastClaim, err := st.contractCaller.Call(st.evm.Context.Coinbase, walletContractAddress, []byte("lastClaim()"), st.gas)
+    // Fetch the values from the AnonID contract
+    lastClaim, err := st.contractCaller.Call(st.evm.Context.Coinbase, AnonIDContractAddress, []byte("lastClaim(address)"), userAddress, st.gas)
     if err != nil {
         return fmt.Errorf("failed to fetch lastClaim: %v", err)
     }
 
-    lastlastClaim, err := st.contractCaller.Call(st.evm.Context.Coinbase, walletContractAddress, []byte("lastlastClaim()"), st.gas)
+    lastlastClaim, err := st.contractCaller.Call(st.evm.Context.Coinbase, AnonIDContractAddress, []byte("lastLastClaim(address)"), userAddress, st.gas)
     if err != nil {
         return fmt.Errorf("failed to fetch lastlastClaim: %v", err)
     }
 
-	lastClaimInt := new(big.Int).SetBytes(lastClaim)
-	lastlastClaimInt := new(big.Int).SetBytes(lastlastClaim)
-	amountToMint := new(big.Int).Sub(lastClaimInt, lastlastClaimInt)
-	
+    lastClaimInt := new(big.Int).SetBytes(lastClaim)
+    lastlastClaimInt := new(big.Int).SetBytes(lastlastClaim)
+    amountToMint := new(big.Int).Sub(lastClaimInt, lastlastClaimInt)
 
     // Fetch the coinCommission from the AnonID contract
     coinCommissionBytes, err := st.contractCaller.Call(st.evm.Context.Coinbase, AnonIDContractAddress, []byte("coinCommission()"), st.gas)
@@ -334,15 +334,14 @@ func (st *StateTransition) ProcessClaimTokens(walletContractAddress common.Addre
     st.state.AddBalance(AnonIDContractAddress, commissionAmount)
 
     // Mint the tokens to the user's address
-    st.state.AddBalance(st.msg.From(), amountToMint)
+    st.state.AddBalance(userAddress, amountToMint)
 
-    // Update the contract's state
-    // Note: You'll need a way to invoke contract functions to set these values
-    // invokeSetFunction(walletContractAddress, "setLastlastClaim", lastClaim)
-    // invokeSetFunction(walletContractAddress, "setLastClaim", st.state.GetBalance(st.msg.From()))
+    // Note: You'll need to reflect these changes in the smart contract as well. 
+    // The contract functions should be called with the correct parameters.
 
     return nil
 }
+
 
 
 func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
@@ -357,7 +356,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	if string(hasExceeded) == "true" {
 		return nil, fmt.Errorf("transaction not allowed: user %s has exceeded allowed transactions", senderAddress.Hex())
 	}
-	var AnonIDContractAddress = common.HexToAddress("0x88d496375b94606fDc878466E37f20FA2D375d12")
+	var AnonIDContractAddress = common.HexToAddress("0x31337b00000000000daaaaaaaaaaaaa5")
 	if st.IsClaimTokensInvoked() {
         // If so, handle the claim logic
         err := st.ProcessClaimTokens(*st.msg.To())
@@ -366,7 +365,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
         }
     }
     // Check if the address is whitelisted using the contract's isAddressWhitelisted function
-	isWhitelisted, err := st.contractCaller.Call(st.msg.From(), AnonIDContractAddress, []byte("isAddressWhitelisted(address)"), st.gas)
+	isWhitelisted, err := st.contractCaller.Call(st.msg.From(), AnonIDContractAddress, []byte("isWhitelisted(address)"), st.gas)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check if address is whitelisted: %v", err)
 	}

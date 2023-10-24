@@ -60,6 +60,8 @@ abstract contract AnonIDContract {
             abi.encodePacked(newCoinCommission)
         )
     {
+        require(newCoinCommission >= 0 && newCoinCommission <= 20, "AnonIDContract: Commission should be between 0% and 20%");
+
         require(newCoinCommission == lastUsedCommission, "AnonIDContract: Mismatched commission values between step one and two");
 
         coinCommission = newCoinCommission;
@@ -67,38 +69,98 @@ abstract contract AnonIDContract {
         // Reset the temporary variable
         lastUsedCommission = 0;
     }
+    function coinCommission() public view returns (uint256) {
+        return _coinCommission;
+    }
     // Mapping of permitted contracts
     mapping(address => bool) public isContractPermitted;
-    mapping(bytes32 => address) public whitelist;
+    // user mappings
+    mapping(bytes32 => bool) public whitelist;
+    mapping(address => uint256) public minutesPlayed;
+    mapping(address => uint256) public lastClaim;
+    mapping(address => uint256) public lastLastClaim;
+    mapping(address => bytes32) public addressToHashedID;
+
+
 
     function addToWhitelist(address _address, string memory govID) external {
         require(isContractPermitted[msg.sender], "Not permitted to modify whitelist");
         
         bytes32 hashedID = keccak256(abi.encodePacked(govID));
-        require(whitelist[hashedID] == address(0), "Hashed ID collision detected");
 
-        whitelist[hashedID] = _address;
+        // Ensure the address is not already whitelisted
+        require(!whitelist[_address], "Address already whitelisted");
+
+        // Whitelist the address
+        whitelist[_address] = true;
+
+        // Update the address to hashedID mapping
+        addressToHashedID[_address] = hashedID;
     }
+
 
     // Remove an address from the whitelist
-    function removeFromWhitelist(string memory govID) external {
+// Remove an address from the whitelist
+    function removeFromWhitelist(address _address) external {
         require(isContractPermitted[msg.sender], "Not permitted to modify whitelist");
 
-        bytes32 hashedID = keccak256(abi.encodePacked(govID));
-        delete whitelist[hashedID];
+        // Ensure the address is indeed whitelisted before removing
+        require(whitelist[_address], "Address not found in whitelist");
+
+        // Remove the address from the whitelist
+        whitelist[_address] = false;
+
+        // Remove the address and hashedID association from the addressToHashedID mapping
+        delete addressToHashedID[_address];
     }
 
-    function isWhitelisted(string memory govID) external view returns (address) {
-        bytes32 hashedID = keccak256(abi.encodePacked(govID));
-        return whitelist[hashedID];
+    function incrementMinutesPlayed(address user, uint256 minutes) external {
+        require(isContractPermitted[msg.sender], "Not permitted to modify minutes played");
+        minutesPlayed[user] += minutes;
     }
-    // Function to grant permission to a contract
-    function grantContractPermission(address contractAddress, bytes32[2][256] calldata currentpub, bytes[256] calldata sig, bytes32 nextPKH) public onlyLamportMaster(currentpub, sig, nextPKH, abi.encodePacked(contractAddress)) {
+
+    // Function to get the minutes played by a user
+    function getMinutesPlayed(address user) external view returns (uint256) {
+        return minutesPlayed[user];
+    }
+ // New function to check if an address is whitelisted
+    function isWhitelisted(address _address) external view returns (bool) {
+        return whitelist[_address];
+    }
+    function claimGP() external {
+        // The invoking address is the user's address
+        address userAddress = msg.sender;
+
+        // Check if the user's address is whitelisted
+        require(whitelist[userAddress] != address(0), "User is not whitelisted");
+
+        // Use the user's address to fetch lastClaim and lastLastClaim from AnonID contract
+        uint256 lastClaimValue = lastClaim[userAddress];
+        uint256 lastLastClaimValue = lastLastClaim[userAddress];
+        
+        require(lastClaimValue >= lastLastClaimValue, "Invalid claim values");
+
+        // uint256 amountToMint = lastClaimValue.sub(lastLastClaimValue); // Using SafeMath
+
+        // uint256 commissionAmount = amountToMint.mul(coinCommission).div(100); // Using SafeMath
+        // amountToMint = amountToMint.sub(commissionAmount); // Using SafeMath
+
+        // // Transfer the commission
+        // token.transfer(commissionAddress, commissionAmount);
+
+        // // Transfer the tokens to the user
+        // token.transfer(userAddress, amountToMint);
+
+        // Update lastClaim and lastLastClaim in the AnonID contract
+        lastLastClaim[userAddress] = lastClaimValue;
+        lastClaim[userAddress] = minutesPlayed[userAddress];  // Update with the current minutes played
+    }
+    function grantActivityContractPermission(address contractAddress, bytes32[2][256] calldata currentpub, bytes[256] calldata sig, bytes32 nextPKH) public onlyLamportMaster(currentpub, sig, nextPKH, abi.encodePacked(contractAddress)) {
         isContractPermitted[contractAddress] = true;
     }
 
     // Function to revoke permission from a contract
-    function revokeContractPermission(address contractAddress, bytes32[2][256] calldata currentpub, bytes[256] calldata sig, bytes32 nextPKH) public onlyLamportMaster(currentpub, sig, nextPKH, abi.encodePacked(contractAddress)) {
+    function revokeActivityContractPermission(address contractAddress, bytes32[2][256] calldata currentpub, bytes[256] calldata sig, bytes32 nextPKH) public onlyLamportMaster(currentpub, sig, nextPKH, abi.encodePacked(contractAddress)) {
         isContractPermitted[contractAddress] = false;
     }
 
