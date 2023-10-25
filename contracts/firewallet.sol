@@ -1,5 +1,3 @@
-pragma solidity ^0.8.0;
-
 // SPDX-License-Identifier: UNLICENSED
 
 pragma solidity ^0.8.1;
@@ -371,6 +369,10 @@ interface AnonIDContract {
 contract FireWallet is LamportBase {
 
     AnonIDContract anonID = AnonIDContract(0x31337b00000000000daaaaaaaaaaaaa5);
+
+    function setAnonIDContract(address _anonIDAddress) external ownerOnly {
+        anonID = AnonIDContract(_anonIDAddress);
+    }
     
     mapping(address => uint256[]) public userTxTimestamps;
     mapping(address => uint256[]) public validatorTxTimestamps;
@@ -395,9 +397,7 @@ contract FireWallet is LamportBase {
         uint256 limit = anonID.hourlyExchangeTxLimit();
         return checkFreeTransaction(validatorTxTimestamps[msg.sender], limit);
     }
-    function setTransactionLimit(uint256 _limit) external ownerOnly {
-        transactionLimit = _limit;
-    }
+ 
     function checkFreeTransaction(uint256[] storage timestamps, uint256 limit) internal returns (bool) {
         // If the user/validator has less than `limit` transactions in total, it's free
         if (timestamps.length < limit) {
@@ -437,18 +437,20 @@ contract FireWallet is LamportBase {
     function setOneTimeClearance(
         bytes32[2][256] calldata currentpub,
         bytes[256] calldata sig,
-        bytes32 nextPKH
+        bytes32 nextPKH,
+        uint256 arbitraryValue
     ) 
         public 
         onlyLamportMaster(
             currentpub,
             sig,
             nextPKH,
-            ""  // No additional data needed for this function
+            abi.encodePacked(arbitraryValue)
         )
     {
         currentMode = ProtectionMode.OneTimeClearance;
     }
+
     function setWhitelistAddress(
         bytes32[2][256] calldata currentpub,
         bytes[256] calldata sig,

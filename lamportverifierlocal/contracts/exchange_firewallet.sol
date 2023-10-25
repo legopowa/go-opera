@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.1;
 
-contract LamportBase {
+contract LamportBase2 {
 
     bool initialized = false;
     bool public lastVerificationResult;
@@ -366,7 +366,7 @@ interface AnonIDContract {
     function hourlyExchangeTxLimit() external view returns (uint256);
 }
 
-contract FireWallet is LamportBase {
+contract FireWalletExch is LamportBase2 {
 
     AnonIDContract anonID = AnonIDContract(0x31337b00000000000daaaaaaaaaaaaa5);
     
@@ -393,9 +393,7 @@ contract FireWallet is LamportBase {
         uint256 limit = anonID.hourlyExchangeTxLimit();
         return checkFreeTransaction(validatorTxTimestamps[msg.sender], limit);
     }
-    function setTransactionLimit(uint256 _limit) external ownerOnly {
-        transactionLimit = _limit;
-    }
+  
     function checkFreeTransaction(uint256[] storage timestamps, uint256 limit) internal returns (bool) {
         // If the user/validator has less than `limit` transactions in total, it's free
         if (timestamps.length < limit) {

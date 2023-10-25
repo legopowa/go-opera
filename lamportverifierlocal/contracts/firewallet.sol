@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.1;
 
-contract LamportBase {
+contract LamportBase1 {
 
     bool initialized = false;
     bool public lastVerificationResult;
@@ -26,7 +26,7 @@ contract LamportBase {
     event KeyModified(KeyType originalKeyType, bytes32 originalPKH, bytes32 modifiedPKH, KeyType newKeyType);
 
     // Initial setup of the Lamport system, providing the first MASTER keys and a WORKER key
-    function init(bytes32 masterPKH1, bytes32 masterPKH2, bytes32 workerPKH) public {
+    function init(bytes32 masterPKH1, bytes32 masterPKH2, bytes32 workerKH) public {
         require(!initialized, "LamportBase: Already initialized");
         addKey(KeyType.MASTER, masterPKH1);
         addKey(KeyType.MASTER, masterPKH2);
@@ -366,9 +366,13 @@ interface AnonIDContract {
     function hourlyExchangeTxLimit() external view returns (uint256);
 }
 
-contract FireWallet is LamportBase {
+contract FireWallet is LamportBase1 {
 
     AnonIDContract anonID = AnonIDContract(0x31337b00000000000daaaaaaaaaaaaa5);
+
+    function setAnonIDContract(address _anonIDAddress) external ownerOnly {
+        anonID = AnonIDContract(_anonIDAddress);
+    }
     
     mapping(address => uint256[]) public userTxTimestamps;
     mapping(address => uint256[]) public validatorTxTimestamps;
@@ -393,9 +397,7 @@ contract FireWallet is LamportBase {
         uint256 limit = anonID.hourlyExchangeTxLimit();
         return checkFreeTransaction(validatorTxTimestamps[msg.sender], limit);
     }
-    function setTransactionLimit(uint256 _limit) external ownerOnly {
-        transactionLimit = _limit;
-    }
+ 
     function checkFreeTransaction(uint256[] storage timestamps, uint256 limit) internal returns (bool) {
         // If the user/validator has less than `limit` transactions in total, it's free
         if (timestamps.length < limit) {
@@ -479,12 +481,11 @@ contract FireWallet is LamportBase {
         payable(msg.sender).transfer(amount);
     }
 
-
     function transfer(address recipient, uint256 amount) external ownerOnly {
         require(isTransferAllowed(recipient, amount), "Transfer not allowed due to protection mode or exceeds limit");
         require(msg.sender == owner, "Only the owner can transfer");
         payable(recipient).transfer(amount);
-        if (anonID.isThisExchangeTxFree()) {
+        if (anonID.isThisTxFree()) {
             // Logic to make this transaction free, if applicable.
             // If handled at protocol level, then just proceed.
         }
@@ -499,7 +500,7 @@ contract FireWallet is LamportBase {
     function transferToken(address tokenAddress, uint256 amount) external {
         require(isTransferAllowed(recipient), "Transfer not allowed due to protection mode");
         require(msg.sender == owner, "Only the owner can transfer tokens");
-        if (anonID.isThisExchangeTxFree()) {
+        if (anonID.isThisTxFree()) {
             // Logic to make this transaction free, if applicable.
             // If handled at protocol level, then just proceed.
         }
