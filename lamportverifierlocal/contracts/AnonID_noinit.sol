@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.1;
 
-abstract contract AnonIDContract {
+contract AnonIDContract {
     
     uint256 public freeGasFee; // Add this state variable for freeGasFee
     uint256 public _coinCommission;
@@ -14,6 +14,9 @@ abstract contract AnonIDContract {
     uint256 public hourlyUserTxLimit;
     uint256 public hourlyValidatorTxLimit;
     uint256 public hourlyExchangeTxLimit;
+    mapping(address => uint256[]) public userTxTimestamps;
+    mapping(address => uint256) public hourlyTxQuota;
+
 
     constructor() {
         // Directly set the initial Lamport keys in the constructor
@@ -150,14 +153,57 @@ abstract contract AnonIDContract {
         // Ensure the address is not already whitelisted
         require(!whitelist[_address], "Address already whitelisted");
 
+         // Initialize the hourly transaction quota for the address
+        hourlyTxQuota[_address] = 5; // Initial quota set to 10, adjust as needed
+
         // Whitelist the address
         whitelist[_address] = true;
 
         // Update the address to hashedID mapping
         addressToHashedID[_address] = hashedID;
     }
+    // function getHourlyTxQuota(address _address) external view returns (uint256) {
+    //     return hourlyTxQuota[_address];
+    // }
 
+    function setHourlyTxQuota(address _address, uint256 _quota) external {
+        require(isContractPermitted[msg.sender], "Not permitted to modify hourly transaction quota");
 
+        // Ensure the address is indeed whitelisted before setting the quota
+        require(whitelist[_address], "Address not found in whitelist");
+
+        // Set the hourly transaction quota for the address
+        hourlyTxQuota[_address] = _quota;
+    }
+    function isThisTxFree(address _user) external returns (bool) {
+        // Ensure only the coinbase can call this function
+        require(msg.sender == block.coinbase, "Only the current block's coinbase can call this function");
+
+        // Check if the user is whitelisted
+        if (!whitelist[_user]) {
+            return false;
+        }
+
+        uint256[] storage timestamps = userTxTimestamps[_user];
+
+        // If the user has reached their hourly quota, check the oldest timestamp
+        if (timestamps.length == hourlyTxQuota[_user]) {
+            if (block.timestamp - timestamps[0] <= 1 hours) {
+                // If the oldest transaction is within the last hour, the quota has been exceeded
+                return false;
+            } else {
+                // Otherwise, remove the oldest timestamp to make space for the new one
+                for (uint i = 0; i < timestamps.length - 1; i++) {
+                    timestamps[i] = timestamps[i + 1];
+                }
+                timestamps.pop();
+            }
+        }
+
+        // Add the new transaction timestamp
+        timestamps.push(block.timestamp);
+        return true;
+    }
     // Remove an address from the whitelist
 // Remove an address from the whitelist
     function removeFromWhitelist(address _address) external {

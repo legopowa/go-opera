@@ -9,8 +9,6 @@ import (
 	"io/ioutil"
 	"os"
 
-	
-	"github.com/crystals-dilithium/dilithium"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"

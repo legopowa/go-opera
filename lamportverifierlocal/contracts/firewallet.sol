@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 
+
 pragma solidity ^0.8.1;
 
 contract LamportBase1 {
@@ -356,17 +357,17 @@ contract LamportBase1 {
         addKey(KeyType.WORKER, newworkerPKH);
       
     }
-}
+// }
 
 
-interface AnonIDContract {
-    // Directly referencing the public state variables
-    function hourlyUserTxLimit() external view returns (uint256);
-    function hourlyValidatorTxLimit() external view returns (uint256);
-    function hourlyExchangeTxLimit() external view returns (uint256);
-}
+// interface AnonIDContract {
+//     // Directly referencing the public state variables
+//     function hourlyUserTxLimit() external view returns (uint256);
+//     function hourlyValidatorTxLimit() external view returns (uint256);
+//     function hourlyExchangeTxLimit() external view returns (uint256);
+// }
 
-contract FireWallet is LamportBase1 {
+// contract FireWallet is LamportBase1 {
 
     AnonIDContract anonID = AnonIDContract(0x31337b00000000000daaaaaaaaaaaaa5);
 
@@ -383,39 +384,39 @@ contract FireWallet is LamportBase1 {
     ProtectionMode public currentMode = ProtectionMode.None;
     address public whitelistedAddress;
 
-    function isThisTxFree() external returns (bool) {
-        uint256 limit = anonID.hourlyUserTxLimit();
-        return checkFreeTransaction(userTxTimestamps[msg.sender], limit);
-    }
+    // function isThisTxFree() external returns (bool) {
+    //     uint256 limit = anonID.hourlyUserTxLimit();
+    //     return checkFreeTransaction(userTxTimestamps[msg.sender], limit);
+    // }
     
-    function isThisValidationFree() external returns (bool) {
-        uint256 limit = anonID.hourlyValidatorTxLimit();
-        return checkFreeTransaction(validatorTxTimestamps[msg.sender], limit);
-    }
+    // function isThisValidationFree() external returns (bool) {
+    //     uint256 limit = anonID.hourlyValidatorTxLimit();
+    //     return checkFreeTransaction(validatorTxTimestamps[msg.sender], limit);
+    // }
 
-    function isThisExchangeTxFree() external returns (bool) {
-        uint256 limit = anonID.hourlyExchangeTxLimit();
-        return checkFreeTransaction(validatorTxTimestamps[msg.sender], limit);
-    }
+    // function isThisExchangeTxFree() external returns (bool) {
+    //     uint256 limit = anonID.hourlyExchangeTxLimit();
+    //     return checkFreeTransaction(validatorTxTimestamps[msg.sender], limit);
+    // }
  
-    function checkFreeTransaction(uint256[] storage timestamps, uint256 limit) internal returns (bool) {
-        // If the user/validator has less than `limit` transactions in total, it's free
-        if (timestamps.length < limit) {
-            timestamps.push(block.timestamp);
-            return true;
-        }
+    // function checkFreeTransaction(uint256[] storage timestamps, uint256 limit) internal returns (bool) {
+    //     // If the user/validator has less than `limit` transactions in total, it's free
+    //     if (timestamps.length < limit) {
+    //         timestamps.push(block.timestamp);
+    //         return true;
+    //     }
 
-        uint256 nthLastTxTimestamp = timestamps[timestamps.length - limit];
+    //     uint256 nthLastTxTimestamp = timestamps[timestamps.length - limit];
 
-        // If the nth last transaction happened more than an hour ago, it's free
-        if (nthLastTxTimestamp <= block.timestamp - 1 hours) {
-            timestamps.push(block.timestamp);
-            return true;
-        } else {
-            // If not, the user/validator has to pay
-            return false;
-        }
-    }
+    //     // If the nth last transaction happened more than an hour ago, it's free
+    //     if (nthLastTxTimestamp <= block.timestamp - 1 hours) {
+    //         timestamps.push(block.timestamp);
+    //         return true;
+    //     } else {
+    //         // If not, the user/validator has to pay
+    //         return false;
+    //     }
+    // }
 
     function setTransactionLimit(
         bytes32[2][256] calldata currentpub,

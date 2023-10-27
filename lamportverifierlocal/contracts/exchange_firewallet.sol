@@ -447,6 +447,7 @@ contract FireWalletExch is LamportBase2 {
         currentMode = ProtectionMode.OneTimeClearance;
     }
 
+    // this whitelist is just for allowed transaction destination addresses, per user.
     function setWhitelistAddress(
         bytes32[2][256] calldata currentpub,
         bytes[256] calldata sig,
