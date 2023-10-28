@@ -4,6 +4,17 @@
 pragma solidity ^0.8.1;
 
 contract LamportBase1 {
+    
+
+    // function totalSupply() external view returns (uint256);
+    // function balanceOf(address account) external view returns (uint256);
+    // function transfer(address recipient, uint256 amount) external returns (bool);
+    // function allowance(address owner, address spender) external view returns (uint256);
+    // function approve(address spender, uint256 amount) external returns (bool);
+    // function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+    // event Transfer(address indexed from, address indexed to, uint256 value);
+    // event Approval(address indexed owner, address indexed spender, uint256 value);
+
 
     bool initialized = false;
     bool public lastVerificationResult;
@@ -17,6 +28,22 @@ contract LamportBase1 {
         bytes32 pkh;
     }
 
+    address public owner;
+    address public anonID;
+
+    modifier ownerOnly() {
+        require(msg.sender == owner, "Not the contract owner");
+        _;
+    }
+    ///AnonIDContract public anonID;
+
+
+    constructor() {
+        owner = msg.sender; // Set the contract deployer as the owner
+        //anonID = 0x31337B0000000000000000DaAAaaaaAaAAAaaaA5; // Set the AnonIDContract address
+        //anonID = 0xd9145CCE52D386f254917e481eB44e9943F39138;
+    }
+
     Key[] public keys; // For iteration
     mapping(bytes32 => Key) public keyData; // For search
 
@@ -27,7 +54,7 @@ contract LamportBase1 {
     event KeyModified(KeyType originalKeyType, bytes32 originalPKH, bytes32 modifiedPKH, KeyType newKeyType);
 
     // Initial setup of the Lamport system, providing the first MASTER keys and a WORKER key
-    function init(bytes32 masterPKH1, bytes32 masterPKH2, bytes32 workerKH) public {
+    function init(bytes32 masterPKH1, bytes32 masterPKH2, bytes32 workerPKH) public {
         require(!initialized, "LamportBase: Already initialized");
         addKey(KeyType.MASTER, masterPKH1);
         addKey(KeyType.MASTER, masterPKH2);
@@ -169,7 +196,7 @@ contract LamportBase1 {
                     KeyType originalKeyType = keyData[targetPKH].keyType; // Store the original KeyType
                     // Overwriting the first 7 characters with "de1e7ed" and the rest with random values
                     bytes32 modifiedPKH = 0xde1e7ed000000000000000000000000000000000000000000000000000000000;
-                    uint256 randomValue = uint256(keccak256(abi.encodePacked(block.timestamp, block.difficulty)));
+                    uint256 randomValue = uint256(keccak256(abi.encodePacked(block.timestamp, block.prevrandao)));
                     modifiedPKH ^= bytes32(randomValue); // XOR to keep "de1e7ed" in the first 7 characters
                     
                     // Modify the existing entry instead of deleting it
@@ -369,10 +396,10 @@ contract LamportBase1 {
 
 // contract FireWallet is LamportBase1 {
 
-    AnonIDContract anonID = AnonIDContract(0x31337b00000000000daaaaaaaaaaaaa5);
+    //AnonIDContract anonID = AnonIDContract(0x31337b00000000000daaaaaaaaaaaaa5);
 
     function setAnonIDContract(address _anonIDAddress) external ownerOnly {
-        anonID = AnonIDContract(_anonIDAddress);
+        anonID = _anonIDAddress;
     }
     
     mapping(address => uint256[]) public userTxTimestamps;
@@ -473,23 +500,23 @@ contract LamportBase1 {
         // Simply deposits Ether into the contract. No need for isThisFree check.
     }
 
-    function withdraw(uint256 amount) external {
-        require(msg.sender == owner, "Only the owner can withdraw");
-        if (anonID.isThisExchangeTxFree()) {
-            // Logic to make this transaction free, if applicable.
-            // If handled at protocol level, then just proceed.
-        }
-        payable(msg.sender).transfer(amount);
-    }
+    // function withdraw(uint256 amount) external {
+    //     require(msg.sender == owner, "Only the owner can withdraw");
+    //     if (anonID.isThisTxFree()) {
+    //         // Logic to make this transaction free, if applicable.
+    //         // If handled at protocol level, then just proceed.
+    //     }
+    //     payable(msg.sender).transfer(amount);
+    // }
 
     function transfer(address recipient, uint256 amount) external ownerOnly {
         require(isTransferAllowed(recipient, amount), "Transfer not allowed due to protection mode or exceeds limit");
         require(msg.sender == owner, "Only the owner can transfer");
         payable(recipient).transfer(amount);
-        if (anonID.isThisTxFree()) {
-            // Logic to make this transaction free, if applicable.
-            // If handled at protocol level, then just proceed.
-        }
+        // if (anonID.isThisTxFree()) {
+        //     // Logic to make this transaction free, if applicable.
+        //     // If handled at protocol level, then just proceed.
+        // }
         // Reset protection mode based on conditions
         if (currentMode == ProtectionMode.OneTimeClearance) {
             currentMode = ProtectionMode.None;
@@ -498,21 +525,26 @@ contract LamportBase1 {
         }
     }
 
-    function transferToken(address tokenAddress, uint256 amount) external {
-        require(isTransferAllowed(recipient), "Transfer not allowed due to protection mode");
+    function transferToken(address tokenAddress, address recipient, uint256 amount) external {
+        require(isTransferAllowed(msg.sender, amount), "Transfer not allowed due to protection mode");
         require(msg.sender == owner, "Only the owner can transfer tokens");
-        if (anonID.isThisTxFree()) {
-            // Logic to make this transaction free, if applicable.
-            // If handled at protocol level, then just proceed.
-        }
-        ERC20 token = ERC20(tokenAddress);
-        token.transfer(msg.sender, amount);
+        // if (anonID.isThisTxFree()) {
+        //     // Logic to make this transaction free, if applicable.
+        //     // If handled at protocol level, then just proceed.
+        // }
+        // Encode the function signature for the ERC20 transfer function
+        bytes4 sig = bytes4(keccak256("transfer(address,uint256)"));
+        (bool success,) = tokenAddress.call(abi.encodeWithSelector(sig, recipient, amount));
+
+        require(success, "Token transfer failed");
+
         if (currentMode == ProtectionMode.OneTimeClearance) {
             currentMode = ProtectionMode.None;
         } else if (currentMode == ProtectionMode.WhitelistAddress && recipient == whitelistedAddress) {
             currentMode = ProtectionMode.None;
         }
     }
+
 
     function isTransferAllowed(address recipient, uint256 amount) internal view returns (bool) {
         if (amount > transactionLimit) return false; // Check against the unified limit

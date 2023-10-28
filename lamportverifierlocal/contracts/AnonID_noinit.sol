@@ -4,16 +4,16 @@ pragma solidity ^0.8.1;
 
 contract AnonIDContract {
     
-    uint256 public freeGasFee; // Add this state variable for freeGasFee
+    uint256 public freeGasCap; // Add this state variable for freeGasFee
     uint256 public _coinCommission;
     uint256 private lastUsedCommission;
     bytes32 public lastUsedBytecodeHash;
     bytes32 constant master1 = 0xb7b18ded9664d1a8e923a5942ec1ca5cd8c13c40eb1a5215d5800600f5a587be;
     bytes32 constant master2 = 0x1ed304ab73e124b0b99406dfa1388a492a818837b4b41ce5693ad84dacfc3f25;
     bytes32 constant oracle = 0xd62569e61a6423c880a429676be48756c931fe0519121684f5fb05cbd17877fa;
-    uint256 public hourlyUserTxLimit;
-    uint256 public hourlyValidatorTxLimit;
-    uint256 public hourlyExchangeTxLimit;
+    // uint256 public hourlyUserTxLimit;
+    // uint256 public hourlyValidatorTxLimit;
+    // uint256 public hourlyExchangeTxLimit;
     mapping(address => uint256[]) public userTxTimestamps;
     mapping(address => uint256) public hourlyTxQuota;
 
@@ -23,60 +23,60 @@ contract AnonIDContract {
         addKey(KeyType.MASTER, master1);
         addKey(KeyType.MASTER, master2);
         addKey(KeyType.ORACLE, oracle);
-        hourlyUserTxLimit = 5;
-        hourlyValidatorTxLimit = 120;
-        hourlyExchangeTxLimit = 1200;
+        // hourlyUserTxLimit = 5;
+        // hourlyValidatorTxLimit = 120;
+        // hourlyExchangeTxLimit = 1200;
     }
-    function setHourlyUserTxLimit(
-        bytes32[2][256] calldata currentpub,
-        bytes[256] calldata sig,
-        bytes32 nextPKH,
-        uint256 _limit
-    ) 
-        external 
-        onlyLamportMaster(
-            currentpub,
-            sig,
-            nextPKH,
-            abi.encodePacked(_limit)
-        )
-    {
-        hourlyUserTxLimit = _limit;
-    }
+    // function setHourlyUserTxLimit(
+    //     bytes32[2][256] calldata currentpub,
+    //     bytes[256] calldata sig,
+    //     bytes32 nextPKH,
+    //     uint256 _limit
+    // ) 
+    //     external 
+    //     onlyLamportMaster(
+    //         currentpub,
+    //         sig,
+    //         nextPKH,
+    //         abi.encodePacked(_limit)
+    //     )
+    // {
+    //     hourlyUserTxLimit = _limit;
+    // }
 
-    function setHourlyValidatorTxLimit(
-        bytes32[2][256] calldata currentpub,
-        bytes[256] calldata sig,
-        bytes32 nextPKH,
-        uint256 _limit
-    ) 
-        external 
-        onlyLamportMaster(
-            currentpub,
-            sig,
-            nextPKH,
-            abi.encodePacked(_limit)
-        )
-    {
-        hourlyValidatorTxLimit = _limit;
-    }
+    // function setHourlyValidatorTxLimit(
+    //     bytes32[2][256] calldata currentpub,
+    //     bytes[256] calldata sig,
+    //     bytes32 nextPKH,
+    //     uint256 _limit
+    // ) 
+    //     external 
+    //     onlyLamportMaster(
+    //         currentpub,
+    //         sig,
+    //         nextPKH,
+    //         abi.encodePacked(_limit)
+    //     )
+    // {
+    //     hourlyValidatorTxLimit = _limit;
+    // }
 
-    function setHourlyExchangeTxLimit(
-        bytes32[2][256] calldata currentpub,
-        bytes[256] calldata sig,
-        bytes32 nextPKH,
-        uint256 _limit
-    ) 
-        external 
-        onlyLamportMaster(
-            currentpub,
-            sig,
-            nextPKH,
-            abi.encodePacked(_limit)
-        )
-    {
-        hourlyExchangeTxLimit = _limit;
-    }
+    // function setHourlyExchangeTxLimit(
+    //     bytes32[2][256] calldata currentpub,
+    //     bytes[256] calldata sig,
+    //     bytes32 nextPKH,
+    //     uint256 _limit
+    // ) 
+    //     external 
+    //     onlyLamportMaster(
+    //         currentpub,
+    //         sig,
+    //         nextPKH,
+    //         abi.encodePacked(_limit)
+    //     )
+    // {
+    //     hourlyExchangeTxLimit = _limit;
+    // }
     // bool initialized = false;
     bool public lastVerificationResult;
 
@@ -128,6 +128,8 @@ contract AnonIDContract {
 
         // Reset the temporary variable
         lastUsedCommission = 0;
+        emit CommissionSet(newCoinCommission);
+
     }
     function coinCommission() public view returns (uint256) {
         return _coinCommission;
@@ -145,10 +147,10 @@ contract AnonIDContract {
 
 
 
-    function addToWhitelist(address _address, string memory govID) external {
+    function addToWhitelist(address _address, string memory anonID) external {
         require(isContractPermitted[msg.sender], "Not permitted to modify whitelist");
         
-        bytes32 hashedID = keccak256(abi.encodePacked(govID));
+        bytes32 hashedID = keccak256(abi.encodePacked(anonID));
 
         // Ensure the address is not already whitelisted
         require(!whitelist[_address], "Address already whitelisted");
@@ -161,6 +163,9 @@ contract AnonIDContract {
 
         // Update the address to hashedID mapping
         addressToHashedID[_address] = hashedID;
+
+        emit Whitelisted(_address, hashedID);
+
     }
     // function getHourlyTxQuota(address _address) external view returns (uint256) {
     //     return hourlyTxQuota[_address];
@@ -174,6 +179,8 @@ contract AnonIDContract {
 
         // Set the hourly transaction quota for the address
         hourlyTxQuota[_address] = _quota;
+        emit QuotaSet(_address, _quota);
+
     }
     function isThisTxFree(address _user) external returns (bool) {
         // Ensure only the coinbase can call this function
@@ -185,6 +192,8 @@ contract AnonIDContract {
         }
 
         uint256[] storage timestamps = userTxTimestamps[_user];
+        emit TxRecorded(_user, block.timestamp);
+
 
         // If the user has reached their hourly quota, check the oldest timestamp
         if (timestamps.length == hourlyTxQuota[_user]) {
@@ -217,12 +226,16 @@ contract AnonIDContract {
 
         // Remove the address and hashedID association from the addressToHashedID mapping
         delete addressToHashedID[_address];
+        emit RemovedFromWhitelist(_address);
+
     }
 
-    // function incrementMinutesPlayed(address user, uint256 minutes) external {
-    //     require(isContractPermitted[msg.sender], "Not permitted to modify minutes played");
-    //     minutesPlayed[user] += minutes;
-    // }
+    function incrementMinutesPlayed(address user, uint256 _minutes) external {
+        require(isContractPermitted[msg.sender], "Not permitted to modify minutes played");
+        minutesPlayed[user] += _minutes;
+        emit MinutesPlayedIncremented(user, _minutes);
+
+    }
 
     // Function to get the minutes played by a user
     function getMinutesPlayed(address user) external view returns (uint256) {
@@ -259,9 +272,13 @@ contract AnonIDContract {
         // Update lastClaim and lastLastClaim in the AnonID contract
         lastLastClaim[userAddress] = lastClaimValue;
         lastClaim[userAddress] = minutesPlayed[userAddress];  // Update with the current minutes played
+        emit ClaimedGP(userAddress, lastClaimValue, minutesPlayed[userAddress]);
+
     }
     function grantActivityContractPermission(address contractAddress, bytes32[2][256] calldata currentpub, bytes[256] calldata sig, bytes32 nextPKH) public onlyLamportMaster(currentpub, sig, nextPKH, abi.encodePacked(contractAddress)) {
         isContractPermitted[contractAddress] = true;
+        emit ContractPermissionGranted(contractAddress);
+
     }
 
     // Function to revoke permission from a contract
@@ -281,6 +298,18 @@ contract AnonIDContract {
     event PkhUpdated(KeyType keyType, bytes32 previousPKH, bytes32 newPKH);
     event KeyAdded(KeyType keyType, bytes32 newPKH);
     event KeyModified(KeyType originalKeyType, bytes32 originalPKH, bytes32 modifiedPKH, KeyType newKeyType);
+    event Whitelisted(address indexed _address, bytes32 hashedID);
+    event QuotaSet(address indexed _address, uint256 _quota);
+    event TxRecorded(address indexed _user, uint256 timestamp);
+    event RemovedFromWhitelist(address indexed _address);
+    event MinutesPlayedIncremented(address indexed user, uint256 _minutes);
+    event CommissionSet(uint256 newCoinCommission);
+    event ContractPermissionGranted(address contractAddress);
+    event ContractPermissionRevoked(address contractAddress);
+    event FreeGasCapSet(uint256 newFreeGasCap);
+    event ClaimedGP(address indexed userAddress, uint256 lastClaimValue, uint256 minutesPlayed);
+
+
 
     // Initial setup of the Lamport system, providing the first MASTER keys and an ORACLE key
     // function init(bytes32 masterPKH1, bytes32 masterPKH2, bytes32 oraclePKH) public {
@@ -582,28 +611,7 @@ contract AnonIDContract {
       
     }
 
-    // function createContractFromMaster(
-    //     bytes32[2][256] calldata currentpub,
-    //     bytes32 nextPKH,
-    //     bytes[256] calldata sig,
-    //     bytes memory bytecode
-    // )
-    //     public
-    //     onlyLamportMaster(
-    //         currentpub,
-    //         sig,
-    //         nextPKH,
-    //         abi.encodePacked(bytecode)
-    //     )
-    //     returns (address)
-    // {
-    //     address newContract;
-    //     assembly {
-    //         newContract := create(0, add(bytecode, 0x20), mload(bytecode))
-    //     }
-    //     require(newContract != address(0), "Contract creation failed");
-    //     return newContract;
-    // }
+
     function createContractStepOne(
         bytes32[2][256] calldata currentpub,
         bytes[256] calldata sig,
@@ -646,8 +654,10 @@ contract AnonIDContract {
         require(newContract != address(0), "Contract creation failed");
         return newContract;
     }
-    function setFreeGasFee(uint256 _newFee, bytes32[2][256] calldata currentpub, bytes[256] calldata sig, bytes32 nextPKH) public onlyLamportMaster(currentpub, sig, nextPKH, abi.encodePacked(_newFee)) {
-        freeGasFee = _newFee;
+    function setFreeGasCap(uint256 _newCap, bytes32[2][256] calldata currentpub, bytes[256] calldata sig, bytes32 nextPKH) public onlyLamportMaster(currentpub, sig, nextPKH, abi.encodePacked(_newCap)) {
+        freeGasCap = _newCap;
+        emit FreeGasCapSet(_newCap);
+
     }
 
 }
