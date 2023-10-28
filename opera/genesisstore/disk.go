@@ -8,12 +8,18 @@ import (
 	"io"
 	"strings"
 	"time"
+	"os"
+	"crypto/sha256"
+
 
 	"github.com/Fantom-foundation/lachesis-base/common/bigendian"
 	"github.com/Fantom-foundation/lachesis-base/hash"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/status-im/keycard-go/hexutils"
 	"github.com/syndtr/goleveldb/leveldb/opt"
+	"github.com/Fantom-foundation/go-opera/utils/iodb"
+
+
 
 	"github.com/Fantom-foundation/go-opera/opera/genesis"
 	"github.com/Fantom-foundation/go-opera/opera/genesisstore/filelog"
@@ -160,8 +166,59 @@ func OpenGenesisStore(rawReader ReadAtSeekerCloser) (*Store, genesis.Hashes, err
 	if err != nil {
 		return nil, hashes, err
 	}
-
+	
 	hashedMap := fileshash.Wrap(unitsMap.Open, FilesHashMaxMemUsage, hashes)
 
-	return NewStore(hashedMap, header, rawReader.Close), hashes, nil
+	genesisStore := NewStore(hashedMap, header, rawReader.Close)
+
+    // Write to the genesis store
+    filePath := "/home/devbox4/Desktop/dev/genesis.g"
+    file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0600)
+    if err != nil {
+        return nil, hashes, err
+    }
+    defer file.Close()
+
+    err = WriteGenesisStore(file, genesisStore)
+    if err != nil {
+        return nil, hashes, err
+    }
+
+    return genesisStore, hashes, nil
+}
+func (s *Store) Export(writer io.Writer) error {
+	return iodb.Write2(writer, s.db)
+}
+
+func (s *Store) Hash() hash.Hash {
+	hasher := sha256.New()
+	it := iodb.NewIterator(nil)
+	defer it.Release()
+	for it.Next() {
+		k := it.Key()
+		v := it.Value()
+		hasher.Write(bigendian.Uint32ToBytes(uint32(len(k))))
+		hasher.Write(k)
+		hasher.Write(bigendian.Uint32ToBytes(uint32(len(v))))
+		hasher.Write(v)
+	}
+	return hash.BytesToHash(hasher.Sum(nil))
+}
+func WriteGenesisStore(rawWriter io.Writer, genesisStore *Store) error {
+    _, err := rawWriter.Write(append(FileHeader, FileVersion...))
+    if err != nil {
+        return err
+    }
+    h := genesisStore.Hash()
+    _, err = rawWriter.Write(h[:])
+    if err != nil {
+        return err
+    }
+    gzipWriter := gzip.NewWriter(rawWriter)
+    defer gzipWriter.Close()
+    err = genesisStore.Export(gzipWriter)
+    if err != nil {
+        return err
+    }
+    return nil
 }

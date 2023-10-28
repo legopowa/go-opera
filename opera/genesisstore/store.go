@@ -5,6 +5,7 @@ import (
 
 	"github.com/Fantom-foundation/go-opera/logger"
 	"github.com/Fantom-foundation/go-opera/opera/genesis"
+	"github.com/Fantom-foundation/lachesis-base/kvdb"
 )
 
 func BlocksSection(i int) string {
@@ -26,6 +27,7 @@ type Store struct {
 	fMap  FilesMap
 	head  genesis.Header
 	close func() error
+    db kvdb.Iteratee
 
 	logger.Instance
 }

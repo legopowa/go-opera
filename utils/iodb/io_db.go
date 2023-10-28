@@ -31,6 +31,30 @@ func Write(writer io.Writer, it kvdb.Iterator) error {
 	return nil
 }
 
+func Write2(writer io.Writer, db kvdb.Iteratee) error {
+	it := db.NewIterator(nil, nil)
+	defer it.Release()
+	for it.Next() {
+		_, err := writer.Write(bigendian.Uint32ToBytes(uint32(len(it.Key()))))
+		if err != nil {
+			return err
+		}
+		_, err = writer.Write(it.Key())
+		if err != nil {
+			return err
+		}
+		_, err = writer.Write(bigendian.Uint32ToBytes(uint32(len(it.Value()))))
+		if err != nil {
+			return err
+		}
+		_, err = writer.Write(it.Value())
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func NewIterator(reader io.Reader) kvdb.Iterator {
 	return &Iterator{
 		reader: reader,
