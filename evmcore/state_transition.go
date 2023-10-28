@@ -339,63 +339,71 @@ func (st *StateTransition) IsClaimTokensInvoked() bool {
     // Check the start of the transaction data
     return bytes.HasPrefix(st.msg.Data(), claimSignature)
 }
-func encodeUserAddress(userAddress common.Address) []byte {
-	const functionABI = `[{"constant":false,"inputs":[{"name":"user","type":"address"}],"name":"lastClaim","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"}]`
-	
+//func encodeUserAddress(userAddress common.Address) []byte {
+func encodeUserAddressForFunction(userAddress common.Address, functionName string) []byte {
+	var functionABI string
+	if functionName == "lastClaim" {
+		functionABI = `[{"constant":false,"inputs":[{"name":"user","type":"address"}],"name":"lastClaim","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"}]`
+	} else if functionName == "lastLastClaim" {
+		functionABI = `[{"constant":false,"inputs":[{"name":"user","type":"address"}],"name":"lastLastClaim","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"}]`
+	} else {
+		// Handle invalid function name
+		return nil
+	}
 	parsedABI, err := abi.JSON(strings.NewReader(functionABI))
 	if err != nil {
 		fmt.Errorf("Failed to parse ABI: %v", err)
 	}
 
-	encodedData, err := parsedABI.Pack("lastClaim", userAddress)
+	encodedData, err := parsedABI.Pack(functionName, userAddress)
 	if err != nil {
 		fmt.Errorf("Failed to ABI encode: %v", err)
 	}
 
 	return encodedData
 }
+
 func (st *StateTransition) ProcessClaimTokens() error {
-    var AnonIDContractAddress = common.HexToAddress("0x31337B0000000000000000DaAAaaaaAaAAAaaaA5")
-    userAddress := st.msg.From()
-    encodedUserAddress := encodeUserAddress(userAddress)
+	var AnonIDContractAddress = common.HexToAddress("0x31337B0000000000000000DaAAaaaaAaAAAaaaA5")
+	userAddress := st.msg.From()
+	
+	encodedUserAddressLastClaim := encodeUserAddressForFunction(userAddress, "lastClaim")
+	encodedUserAddressLastLastClaim := encodeUserAddressForFunction(userAddress, "lastLastClaim")
 
-    // Fetch the values from the AnonID contract
-	lastClaim, err := st.contractCaller.Call(st.evm.Context.Coinbase, AnonIDContractAddress, append([]byte("lastClaim(address)"), encodedUserAddress...), st.gas)
-    if err != nil {
-        return fmt.Errorf("failed to fetch lastClaim: %v", err)
-    }
+	// Fetch the values from the AnonID contract
+	lastClaim, err := st.contractCaller.Call(st.evm.Context.Coinbase, AnonIDContractAddress, append([]byte("lastClaim(address)"), encodedUserAddressLastClaim...), st.gas)
+	if err != nil {
+		return fmt.Errorf("failed to fetch lastClaim: %v", err)
+	}
 
-    lastlastClaim, err := st.contractCaller.Call(st.evm.Context.Coinbase, AnonIDContractAddress, append([]byte("lastLastClaim(address)"), encodedUserAddress...), st.gas)
-    if err != nil {
-        return fmt.Errorf("failed to fetch lastlastClaim: %v", err)
-    }
+	lastlastClaim, err := st.contractCaller.Call(st.evm.Context.Coinbase, AnonIDContractAddress, append([]byte("lastLastClaim(address)"), encodedUserAddressLastLastClaim...), st.gas)
+	if err != nil {
+		return fmt.Errorf("failed to fetch lastlastClaim: %v", err)
+	}
 
-    lastClaimInt := new(big.Int).SetBytes(lastClaim)
-    lastlastClaimInt := new(big.Int).SetBytes(lastlastClaim)
-    amountToMint := new(big.Int).Sub(lastClaimInt, lastlastClaimInt)
+	lastClaimInt := new(big.Int).SetBytes(lastClaim)
+	lastlastClaimInt := new(big.Int).SetBytes(lastlastClaim)
+	amountToMint := new(big.Int).Sub(lastClaimInt, lastlastClaimInt)
 
-    // Fetch the coinCommission from the AnonID contract
-    coinCommissionBytes, err := st.contractCaller.Call(st.evm.Context.Coinbase, AnonIDContractAddress, []byte("coinCommission()"), st.gas)
-    if err != nil {
-        return fmt.Errorf("failed to fetch coinCommission: %v", err)
-    }
-    coinCommission := new(big.Int).SetBytes(coinCommissionBytes)
+	// Fetch the coinCommission from the AnonID contract
+	coinCommissionBytes, err := st.contractCaller.Call(st.evm.Context.Coinbase, AnonIDContractAddress, []byte("coinCommission()"), st.gas)
+	if err != nil {
+		return fmt.Errorf("failed to fetch coinCommission: %v", err)
+	}
+	coinCommission := new(big.Int).SetBytes(coinCommissionBytes)
 
-    // Calculate the commission amount
-    commissionAmount := new(big.Int).Mul(amountToMint, coinCommission)
-    commissionAmount = commissionAmount.Div(commissionAmount, big.NewInt(100)) // Assuming coinCommission is in percentage
+	// Calculate the commission amount
+	commissionAmount := new(big.Int).Mul(amountToMint, coinCommission)
+	commissionAmount = commissionAmount.Div(commissionAmount, big.NewInt(100)) // Assuming coinCommission is in percentage
 
-    // Deduct commission from amountToMint and add to the AnonID contract
-    amountToMint.Sub(amountToMint, commissionAmount)
-    st.state.AddBalance(AnonIDContractAddress, commissionAmount)
+	// Deduct commission from amountToMint and add to the AnonID contract
+	amountToMint.Sub(amountToMint, commissionAmount)
+	st.state.AddBalance(AnonIDContractAddress, commissionAmount)
 
-    // Mint the tokens to the user's address
-    st.state.AddBalance(userAddress, amountToMint)
+	// Mint the tokens to the user's address
+	st.state.AddBalance(userAddress, amountToMint)
 
-    // Note: You'll need to reflect these changes in the smart contract as well. 
-    // The contract functions should be called with the correct parameters.
-
-    return nil
+	return nil
 }
 
 
